@@ -1,16 +1,16 @@
 import pandas as pd
 import numpy as np
 import sqlite3
-import os
 
 from RICE_model import *
 
 
 class RICE:
-    def __init__(self, years, regions, scenario=None, levers=None):
+    def __init__(self, years, regions, scenario=None, levers=None, database_POT=None, table_name_POT=None):
         self.years = years
         self.regions = regions
 
+        # Initialize scenario dict, if provided
         if scenario:
             self.scenario = scenario
             self.uncertainty_dict = model_uncertainties.Uncertainties(self.years, self.regions).create_uncertainty_dict(
@@ -19,6 +19,8 @@ class RICE:
             # Basic RICE scenario in case no scenario is provided
             self.uncertainty_dict = None
             self.scenario = None
+
+        # Initialize levers dict, if provided
         if levers:
             self.levers = levers
         else:
@@ -27,12 +29,17 @@ class RICE:
                            'sr': 0.248,
                            'irstp': 0.015}
 
+        # Initialize submodels
         self.economic_submodel = RICE_economic_submodel.EconomicSubmodel(self.years, self.regions,
                                                                          uncertainty_dict=self.uncertainty_dict)
-        # self.economic_submodel = RICE_economic_submodel.EconomicSubmodel(self.years, self.regions)
         self.carbon_submodel = RICE_carboncycle_submodel.CarbonSubmodel(self.years)
         self.climate_submodel = RICE_climate_submodel.ClimateSubmodel(self.years, self.regions, uncertainty_dict=self.uncertainty_dict)
         self.welfare_submodel = welfare_submodel.WelfareSubmodel(self.years, self.regions)
+
+        # load sqlite database information for a POT simulation
+        if database_POT:
+            self.database_POT = database_POT
+            self.table_name_POT = table_name_POT
 
     def run(self, write_to_excel=False, write_to_sqlite=False, file_name=False):
         t = 0
@@ -325,6 +332,20 @@ class RICE:
         utilitarian_objective_function_value1 = -self.welfare_submodel.global_period_util_ww.sum()
         utilitarian_objective_function_value2 = -self.welfare_submodel.utility
         utilitarian_objective_function_value3 = self.welfare_submodel.temp_overshoots.sum()
+
+        # Save policy P with the objective function values
+        if self.database_POT:
+            policy_dict = {'policy': str(P),
+                           'utilitarian_ofv1': [utilitarian_objective_function_value1],
+                           'utilitarian_ofv2': [utilitarian_objective_function_value2],
+                           'utilitarian_ofv3': [utilitarian_objective_function_value3], }
+            df = pd.DataFrame(data=policy_dict)
+
+            conn = sqlite3.connect(self.database_POT)
+            df.to_sql(name=self.table_name_POT, con=conn, if_exists='append')
+            conn.commit()
+            conn.close()
+
         return utilitarian_objective_function_value1, utilitarian_objective_function_value2, utilitarian_objective_function_value3  # objective_function_value
 
     def DMDU_control(self):

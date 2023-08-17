@@ -5,23 +5,27 @@ import logging
 import pandas as pd
 import sqlite3
 import time
+import os
+
+package_directory = os.path.dirname(os.path.abspath(__file__))
+input_path = os.path.join(package_directory)
 
 
-def main():
+def view_sqlite_database(database, table_name):
+    # df = pd.DataFrame()
+    conn = sqlite3.connect(database)
+    # c = conn.cursor()
 
-    def view_sqlite_database(database, table_name):
-        # df = pd.DataFrame()
-        conn = sqlite3.connect(database)
-        # c = conn.cursor()
+    # c.execute(f"""SELECT count(*) FROM sqlite_master WHERE type='table' AND name={table_name}""")
+    df = pd.read_sql_query(f'''SELECT * FROM {table_name}''', conn)
 
-        # c.execute(f"""SELECT count(*) FROM sqlite_master WHERE type='table' AND name={table_name}""")
-        df = pd.read_sql_query(f'''SELECT * FROM {table_name}''', conn)
+    conn.commit()
+    conn.close()
 
-        conn.commit()
-        conn.close()
+    return df
 
-        return df
 
+if __name__ == '__main__':
     years_10 = []
     for i in range(2005, 2315, 10):
         years_10.append(i)
@@ -174,7 +178,7 @@ def main():
     # # Run "Nordhaus policy - 5x SSP - 9000 scenarios_5.xlsx" -> Test4_5 was done with a temp overshoot threshold of 1.5. Later it was changed to 2.0!
 
     # BASIC RUN ----------------------------------------
-    RICE(years_10, regions).run(write_to_excel=True, file_name='Basic RICE - Nordhaus Policy - 2')
+    # RICE(years_10, regions).run(write_to_excel=True, file_name='Basic RICE - Nordhaus Policy - 2')
 
     # levers = {'mu_target': 2135,
     #           'sr': 0.248,
@@ -224,46 +228,49 @@ def main():
     #                                                               file_name='SSP5_Emissions.xlsx')
     ### ------------------------------------------------
 
-    # ### POT tests -----------------------------------------------------------------------------------------------------
-    #
-    # model = RICE(years_10, regions)
-    # algorithm = PTreeOpt(model.POT_control,
-    #                      # feature_bounds=[[0.8, 2.8], [700, 900], [2005, 2305]],
-    #                      # feature_names=['temp_atm', 'mat', 'year'],
-    #                      # feature_bounds=[[2005, 2305]],
-    #                      # feature_names=['year'],
-    #                      # feature_bounds=[[0.8, 2.8]],
-    #                      # feature_names=['temp_atm'],
-    #                      feature_bounds=[[780, 1300], [55, 2300], [2005, 2305]],
-    #                      feature_names=['mat', 'net_output', 'year'],
-    #                      discrete_actions=True,
-    #                      # action_names=['miu_2100_sr_low', 'miu_2125_sr_low', 'miu_2150_sr_low',
-    #                      #               'miu_2100_sr_high', 'miu_2125_sr_high', 'miu_2150_sr_high'],
-    #                      # action_names=['miu_2100_sr_low', 'miu_2150_sr_high'],
-    #                      # action_names=['miu_2100_sr_low', 'miu_2125_sr_low', 'miu_2150_sr_low'],
-    #                      action_names=['miu_2100', 'miu_2150', 'miu_2200', 'miu_2125', 'sr_02', 'sr_03', 'sr_04', 'sr_05'],
-    #                      mu=20,  # number of parents per generation, 20
-    #                      cx_prob=0.70,  # crossover probability
-    #                      population_size=100,  # 100
-    #                      max_depth=7,
-    #                      multiobj=True
-    #                      )
-    #
-    # logging.basicConfig(level=logging.INFO,
-    #                     format='[%(processName)s/%(levelname)s:%(filename)s:%(funcName)s] %(message)s')
-    #
-    # # With only 1000 function evaluations this will not be very good
-    # best_solution, best_score, snapshots = algorithm.run(max_nfe=500,
-    #                                                      log_frequency=100,
-    #                                                      snapshot_frequency=100)
-    # # print(best_solution)
-    # # print(best_score)
-    # # print(snapshots)
-    # pass
+    ### POT tests -----------------------------------------------------------------------------------------------------
 
+    input_path = os.path.join(package_directory)
+    model = RICE(years_10, regions, database_POT=input_path+'/ptreeopt/output_data/POT_Experiments.db', table_name_POT='indicator_groupsize_3_bin_tournament_1')
+    algorithm = PTreeOpt(model.POT_control,
+                         # feature_bounds=[[0.8, 2.8], [700, 900], [2005, 2305]],
+                         # feature_names=['temp_atm', 'mat', 'year'],
+                         # feature_bounds=[[2005, 2305]],
+                         # feature_names=['year'],
+                         # feature_bounds=[[0.8, 2.8]],
+                         # feature_names=['temp_atm'],
+                         feature_bounds=[[780, 1300], [55, 2300], [2005, 2305]],
+                         feature_names=['mat', 'net_output', 'year'],
+                         discrete_actions=True,
+                         # action_names=['miu_2100_sr_low', 'miu_2125_sr_low', 'miu_2150_sr_low',
+                         #               'miu_2100_sr_high', 'miu_2125_sr_high', 'miu_2150_sr_high'],
+                         # action_names=['miu_2100_sr_low', 'miu_2150_sr_high'],
+                         # action_names=['miu_2100_sr_low', 'miu_2125_sr_low', 'miu_2150_sr_low'],
+                         action_names=['miu_2100', 'miu_2150', 'miu_2200', 'miu_2125', 'sr_02', 'sr_03', 'sr_04', 'sr_05'],
+                         mu=2,  # number of parents per generation, 20
+                         cx_prob=0.70,  # crossover probability
+                         population_size=3,  # 100
+                         max_depth=7,
+                         multiobj=True
+                         )
 
-if __name__ == '__main__':
-    main()
+    logging.basicConfig(level=logging.INFO,
+                        format='[%(processName)s/%(levelname)s:%(filename)s:%(funcName)s] %(message)s')
+
+    # With only 1000 function evaluations this will not be very good
+    best_solution, best_score, snapshots = algorithm.run(max_nfe=2,
+                                                         log_frequency=100,
+                                                         snapshot_frequency=100)
+    # print(best_solution)
+    # print(best_score)
+    # print(snapshots)
+
+    # ## View POT data ---------------------------------------------------------------
+    # df = view_sqlite_database(database=input_path + '/ptreeopt/output_data/POT_Experiments.db',
+    #                           table_name='indicator_groupsize_3_bin_tournament_1')
+    # df.head()
+    # df.info()
+
 
 ## POT coupling ------------------------------------------------------------------------------------------------
 # algorithm = PTreeOpt(model.f,
