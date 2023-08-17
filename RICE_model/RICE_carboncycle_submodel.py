@@ -125,6 +125,10 @@ class CarbonSubmodel:
                         + self.E_worldwide_per_year[t-1] * self.delta_t
                 )
 
+                # set lower constraint for atmospheric concentration
+                if self.mat[t] < self.limits.mat_lo:
+                    self.mat[t] = self.limits.mat_lo
+
                 self.forc[t] = (
                         self.fco22x * (np.log((self.mat[t]) / (280 * 2.13)) / np.log(2.0)) + self.forcoth[t]
                 )

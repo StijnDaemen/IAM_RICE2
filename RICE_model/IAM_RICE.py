@@ -327,90 +327,24 @@ class RICE:
         utilitarian_objective_function_value3 = self.welfare_submodel.temp_overshoots.sum()
         return utilitarian_objective_function_value1, utilitarian_objective_function_value2, utilitarian_objective_function_value3  # objective_function_value
 
+    def DMDU_control(self):
+        t = 0
+        for year in self.years:
+            self.economic_submodel.run_gross(t, year, mu_target=self.levers['mu_target'], sr=self.levers['sr'])
+            self.carbon_submodel.run(t, year, E=self.economic_submodel.E)
+            self.climate_submodel.run(t, year, forc=self.carbon_submodel.forc,
+                                      gross_output=self.economic_submodel.gross_output)
+            self.economic_submodel.run_net(t, year, temp_atm=self.climate_submodel.temp_atm,
+                                           SLRDAMAGES=self.climate_submodel.SLRDAMAGES)
+            self.welfare_submodel.run_utilitarian(t, year, CPC=self.economic_submodel.CPC,
+                                                  labour_force=self.economic_submodel.labour_force,
+                                                  damages=self.economic_submodel.damages,
+                                                  net_output=self.economic_submodel.net_output,
+                                                  temp_atm=self.climate_submodel.temp_atm, irstp=self.levers['irstp'])
+            t += 1
+        # objective_function_value assumes minimization
+        utilitarian_objective_function_value1 = -self.welfare_submodel.global_period_util_ww.sum()
+        utilitarian_objective_function_value2 = -self.welfare_submodel.utility
+        utilitarian_objective_function_value3 = self.welfare_submodel.temp_overshoots.sum()
+        return utilitarian_objective_function_value1, utilitarian_objective_function_value2, utilitarian_objective_function_value3  # objective_function_value
 
-def RICE_for_DMDU(SSP_scenario=5,
-                   fosslim=4000,
-                   climate_sensitivity_distribution='lognormal',
-                   elasticity_climate_impact=0,
-                   price_backstop_tech=1.260,
-                   negative_emissions_possible=1, # 1 = 'no'; 1.2 = 'yes'
-                   t2xco2_index=0,
-                   mu_target=2135,
-                   sr=0.248,
-                   irstp=0.015,
-                  t_steps=10):
-    years = []
-    for i in range(2005, 2315, t_steps):
-        years.append(i)
-
-    regions = [
-        "US",
-        "OECD-Europe",
-        "Japan",
-        "Russia",
-        "Non-Russia Eurasia",
-        "China",
-        "India",
-        "Middle East",
-        "Africa",
-        "Latin America",
-        "OHI",
-        "Other non-OECD Asia",
-    ]
-
-    if negative_emissions_possible == 0:
-        negative_emissions_possible = 'no'
-    elif negative_emissions_possible == 1:
-        negative_emissions_possible = 'yes'
-    else:
-        print('incorrect input for negative_emissions_possible variable')
-
-    if climate_sensitivity_distribution == 0:
-        climate_sensitivity_distribution = 'log'
-    elif climate_sensitivity_distribution == 1:
-        climate_sensitivity_distribution = 'lognormal'
-    elif climate_sensitivity_distribution == 2:
-        climate_sensitivity_distribution = 'Cauchy'
-    else:
-        print('incorrect input for negative_emissions_possible variable')
-
-    scenario = {'SSP_scenario': SSP_scenario,
-                        'fosslim': fosslim,
-                        'climate_sensitivity_distribution': climate_sensitivity_distribution,
-                        'elasticity_climate_impact': elasticity_climate_impact,
-                        'price_backstop_tech': price_backstop_tech,
-                        'negative_emissions_possible': negative_emissions_possible,
-                        't2xco2_index': t2xco2_index}
-    levers = {'mu_target': mu_target,
-              'sr': sr,
-              'irstp': irstp}
-
-    uncertainty_dict = model_uncertainties.Uncertainties(years, regions).create_uncertainty_dict(
-        scenario=scenario)
-
-    # Instantiate the submodels
-    economic_submodel = RICE_economic_submodel.EconomicSubmodel(years, regions,
-                                                                     uncertainty_dict=uncertainty_dict)
-    carbon_submodel = RICE_carboncycle_submodel.CarbonSubmodel(years)
-    climate_submodel = RICE_climate_submodel.ClimateSubmodel(years, regions,
-                                                                  uncertainty_dict=uncertainty_dict)
-    welfare_submodel_ = welfare_submodel.WelfareSubmodel(years, regions)
-    t = 0
-    for year in years:
-        economic_submodel.run_gross(t, year, mu_target=levers['mu_target'], sr=levers['sr'])
-        carbon_submodel.run(t, year, E=economic_submodel.E)
-        climate_submodel.run(t, year, forc=carbon_submodel.forc,
-                                  gross_output=economic_submodel.gross_output)
-        economic_submodel.run_net(t, year, temp_atm=climate_submodel.temp_atm,
-                                       SLRDAMAGES=climate_submodel.SLRDAMAGES)
-        welfare_submodel_.run_utilitarian(t, year, CPC=economic_submodel.CPC,
-                                              labour_force=economic_submodel.labour_force,
-                                              damages=economic_submodel.damages,
-                                              net_output=economic_submodel.net_output,
-                                              temp_atm=climate_submodel.temp_atm, irstp=levers['irstp'])
-        t += 1
-    # objective_function_value assumes minimization
-    utilitarian_objective_function_value1 = -welfare_submodel_.global_period_util_ww.sum()
-    utilitarian_objective_function_value2 = -welfare_submodel_.utility
-    utilitarian_objective_function_value3 = welfare_submodel_.temp_overshoots.sum()
-    return utilitarian_objective_function_value1, utilitarian_objective_function_value2, utilitarian_objective_function_value3  # objective_function_value

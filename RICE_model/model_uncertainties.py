@@ -117,10 +117,11 @@ class Uncertainties:
 
         if ('price_backstop_tech' in list(scenario.keys())) & ('negative_emissions_possible' in list(scenario.keys())):
             # if (scenario['price_backstop_tech'] < self.backstop_dict['price_backstop_tech_limits'][0]) | (scenario['price_backstop_tech'] > self.backstop_dict['price_backstop_tech_limits'][1]):
-            if scenario['price_backstop_tech'] not in self.backstop_dict['price_backstop_tech_limits']:
-                print('Price of backstop technology given in the scenario does not fall within the limits.')
-            else:
-                uncertainty_dict['price_backstop_tech'] = scenario['price_backstop_tech']
+            # if scenario['price_backstop_tech'] not in self.backstop_dict['price_backstop_tech_limits']:
+            #     print('Price of backstop technology given in the scenario does not fall within the limits.')
+            # else:
+            #     uncertainty_dict['price_backstop_tech'] = scenario['price_backstop_tech']
+            uncertainty_dict['price_backstop_tech'] = scenario['price_backstop_tech']
             uncertainty_dict['negative_emissions_possible'] = self.backstop_tech_possible_map[scenario['negative_emissions_possible']]
         else:
             print('No price_backstop_tech and/or negative_emissions_possible was given in the scenario.')
