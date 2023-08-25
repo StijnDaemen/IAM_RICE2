@@ -1,8 +1,10 @@
 from RICE_model.IAM_RICE import RICE
 from ptreeopt import PTreeOpt, MPIExecutor
 import logging
+from POT.optimization import PolicyTreeOptimizer
 
 import pandas as pd
+import numpy as np
 import sqlite3
 import time
 import os
@@ -230,37 +232,38 @@ if __name__ == '__main__':
 
     ### POT tests -----------------------------------------------------------------------------------------------------
 
-    input_path = os.path.join(package_directory)
-    model = RICE(years_10, regions, database_POT=input_path+'/ptreeopt/output_data/POT_Experiments.db', table_name_POT='indicator_groupsize_3_bin_tournament_1')
-    algorithm = PTreeOpt(model.POT_control,
-                         # feature_bounds=[[0.8, 2.8], [700, 900], [2005, 2305]],
-                         # feature_names=['temp_atm', 'mat', 'year'],
-                         # feature_bounds=[[2005, 2305]],
-                         # feature_names=['year'],
-                         # feature_bounds=[[0.8, 2.8]],
-                         # feature_names=['temp_atm'],
-                         feature_bounds=[[780, 1300], [55, 2300], [2005, 2305]],
-                         feature_names=['mat', 'net_output', 'year'],
-                         discrete_actions=True,
-                         # action_names=['miu_2100_sr_low', 'miu_2125_sr_low', 'miu_2150_sr_low',
-                         #               'miu_2100_sr_high', 'miu_2125_sr_high', 'miu_2150_sr_high'],
-                         # action_names=['miu_2100_sr_low', 'miu_2150_sr_high'],
-                         # action_names=['miu_2100_sr_low', 'miu_2125_sr_low', 'miu_2150_sr_low'],
-                         action_names=['miu_2100', 'miu_2150', 'miu_2200', 'miu_2125', 'sr_02', 'sr_03', 'sr_04', 'sr_05'],
-                         mu=2,  # number of parents per generation, 20
-                         cx_prob=0.70,  # crossover probability
-                         population_size=3,  # 100
-                         max_depth=7,
-                         multiobj=True
-                         )
-
-    logging.basicConfig(level=logging.INFO,
-                        format='[%(processName)s/%(levelname)s:%(filename)s:%(funcName)s] %(message)s')
-
-    # With only 1000 function evaluations this will not be very good
-    best_solution, best_score, snapshots = algorithm.run(max_nfe=2,
-                                                         log_frequency=100,
-                                                         snapshot_frequency=100)
+    # input_path = os.path.join(package_directory)
+    # # model = RICE(years_10, regions, database_POT=input_path+'/ptreeopt/output_data/POT_Experiments.db', table_name_POT='indicator_groupsize_3_bin_tournament_1')
+    # model = RICE(years_10, regions)
+    # algorithm = PTreeOpt(model.POT_control,
+    #                      # feature_bounds=[[0.8, 2.8], [700, 900], [2005, 2305]],
+    #                      # feature_names=['temp_atm', 'mat', 'year'],
+    #                      # feature_bounds=[[2005, 2305]],
+    #                      # feature_names=['year'],
+    #                      # feature_bounds=[[0.8, 2.8]],
+    #                      # feature_names=['temp_atm'],
+    #                      feature_bounds=[[780, 1300], [55, 2300], [2005, 2305]],
+    #                      feature_names=['mat', 'net_output', 'year'],
+    #                      discrete_actions=True,
+    #                      # action_names=['miu_2100_sr_low', 'miu_2125_sr_low', 'miu_2150_sr_low',
+    #                      #               'miu_2100_sr_high', 'miu_2125_sr_high', 'miu_2150_sr_high'],
+    #                      # action_names=['miu_2100_sr_low', 'miu_2150_sr_high'],
+    #                      # action_names=['miu_2100_sr_low', 'miu_2125_sr_low', 'miu_2150_sr_low'],
+    #                      action_names=['miu_2100', 'miu_2150', 'miu_2200', 'miu_2125', 'sr_02', 'sr_03', 'sr_04', 'sr_05'],
+    #                      mu=3,  # number of parents per generation, 20
+    #                      cx_prob=0.70,  # crossover probability
+    #                      population_size=5,  # 100
+    #                      max_depth=7,
+    #                      multiobj=True
+    #                      )
+    #
+    # logging.basicConfig(level=logging.INFO,
+    #                     format='[%(processName)s/%(levelname)s:%(filename)s:%(funcName)s] %(message)s')
+    #
+    # # With only 1000 function evaluations this will not be very good
+    # best_solution, best_score, snapshots = algorithm.run(max_nfe=10,
+    #                                                      log_frequency=100,
+    #                                                      snapshot_frequency=100)
     # print(best_solution)
     # print(best_score)
     # print(snapshots)
@@ -270,6 +273,69 @@ if __name__ == '__main__':
     #                           table_name='indicator_groupsize_3_bin_tournament_1')
     # df.head()
     # df.info()
+
+    # Test BORG POT ----------------------------------------------------------------------------------------------
+    # from POT.optimization import PolicyTreeOptimizer
+    #
+    # model = RICE(years_10, regions)
+    # feature_bounds = [[780, 1300], [55, 2300], [2005, 2305]]
+    # feature_names = ['mat', 'net_output', 'year']
+    # action_names = ['miu_2100', 'miu_2150', 'miu_2200', 'miu_2125', 'sr_02', 'sr_03', 'sr_04', 'sr_05']
+    # PolicyTreeOptimizer(model.POT_control, feature_bounds=feature_bounds,
+    #                     feature_names=feature_names,
+    #                     action_names=action_names,
+    #                     discrete_actions=True,
+    #                     population_size=4,
+    #                     mu=2).run(max_nfe=4)
+
+    np.random.seed(1)
+    # Model variables
+    years_10 = []
+    for i in range(2005, 2315, 10):
+        years_10.append(i)
+
+    regions = [
+        "US",
+        "OECD-Europe",
+        "Japan",
+        "Russia",
+        "Non-Russia Eurasia",
+        "China",
+        "India",
+        "Middle East",
+        "Africa",
+        "Latin America",
+        "OHI",
+        "Other non-OECD Asia",
+    ]
+    # Tree variables
+    # action_names = ['miu_2100', 'miu_2150', 'miu_2200', 'miu_2125', 'sr_02', 'sr_03', 'sr_04', 'sr_05']
+    action_names = ['miu', 'sr', 'irstp']
+    action_bounds = [[2100, 2250], [0.2, 0.5], [0.01, 0.1]]
+    feature_names = ['mat', 'net_output', 'year']
+    feature_bounds = [[780, 1300], [55, 2300], [2005, 2305]]
+    # Save variables
+    database_POT = 'C:/Users/Stijn Daemen/Documents/master thesis TU Delft/code/IAM_RICE2/jupyter notebooks/Tests_Borg.db'
+    table_name_POT = 'Test1_couplingborg_not_edited_borg'
+
+    PolicyTreeOptimizer(model=RICE(years_10, regions, database_POT=database_POT, table_name_POT=table_name_POT),
+                        # model=RICE(years_10, regions, database_POT=database_POT, table_name_POT=table_name_POT),
+                        action_names=action_names,
+                        action_bounds=action_bounds,
+                        discrete_actions=False,
+                        feature_names=feature_names,
+                        feature_bounds=feature_bounds,
+                        discrete_features=False,
+                        epsilon=0.1,
+                        max_nfe=6,
+                        max_depth=4,
+                        population_size=3
+                        ).run()
+
+
+
+
+
 
 
 ## POT coupling ------------------------------------------------------------------------------------------------

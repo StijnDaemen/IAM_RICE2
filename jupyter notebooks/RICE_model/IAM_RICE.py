@@ -294,59 +294,35 @@ class RICE:
         return utilitarian_objective_function_value1, utilitarian_objective_function_value2, utilitarian_objective_function_value3
 
     def POT_control(self, P):
-        # Note that currently the indicator variables are hardcoded in, so check if they match the feature_names! (
-        # also in the same order)
         t = 0
         for year in self.years:
             # Determine policy based on indicator variables
             policy, rules = P.evaluate(
                 [self.carbon_submodel.mat[t], self.economic_submodel.net_output[:, t].sum(axis=0), year])
 
-            policy_unpacked = policy.split('_')
-            policy_name = policy_unpacked[0]
-            policy_value = float(policy_unpacked[1])
-            # print(f'policy_name: {policy_name}')
-            # print(f'policy_value: {policy_value}')
-            # print(f'rules: {rules}')
-
             # Initialize levers
             mu_target = 2135
             sr = 0.248
             irstp = 0.015
-            if policy_name == 'miu':
-                mu_target = policy_value
-            elif policy_name == 'sr':
-                sr = policy_value
-            elif policy_name == 'irstp':
-                irstp = policy_value
-
-            # print(f'mu_target: {mu_target}')
-            # print(f'sr: {sr}')
-            # print(f'irstp: {irstp}')
-
-            # # Initialize levers
-            # mu_target = 2135
-            # sr = 0.248
-            # irstp = 0.015
-            # # Match policy to RICE variable lever
-            # if policy == 'miu_2100':
-            #     mu_target = 2100
-            # if policy == 'miu_2150':
-            #     mu_target = 2150
-            # if policy == 'miu_2200':
-            #     mu_target = 2200
-            # if policy == 'miu_2125':
-            #     mu_target = 2125
-            # if policy == 'sr_02':
-            #     sr = 0.2
-            # if policy == 'sr_03':
-            #     sr = 0.3
-            # if policy == 'sr_04':
-            #     sr = 0.4
-            # if policy == 'sr_05':
-            #     sr = 0.5
-            # if policy == 'irspt_15':
-            #     irstp = 0.015
+            # Match policy to RICE variable lever
+            if policy == 'miu_2100':
+                mu_target = 2100
+            if policy == 'miu_2150':
+                mu_target = 2150
+            if policy == 'miu_2200':
+                mu_target = 2200
+            if policy == 'miu_2125':
+                mu_target = 2125
+            if policy == 'sr_02':
+                sr = 0.2
+            if policy == 'sr_03':
+                sr = 0.3
+            if policy == 'sr_04':
+                sr = 0.4
+            if policy == 'sr_05':
+                sr = 0.5
+            if policy == 'irspt_15':
+                irstp = 0.015
 
             # Run one timestep of RICE
             self.economic_submodel.run_gross(t, year, mu_target=mu_target, sr=sr)
