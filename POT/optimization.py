@@ -1,10 +1,11 @@
 from POT.tree import PTree
 import numpy as np
+import pandas as pd
 
 from RICE_model.IAM_RICE import RICE
 
 from platypus import NSGAII, Problem, Real
-from pyborg import BorgMOEA
+from POT.pyborg import BorgMOEA
 
 
 class PolicyTreeOptimizer:
@@ -77,9 +78,15 @@ class PolicyTreeOptimizer:
         algorithm = BorgMOEA(problem, epsilons=self.epsilon, population_size=self.population_size)
         algorithm.run(self.max_nfe)
 
+        results_dict = {}
         # print the results
-        for solution in algorithm.result:
-            print(solution.objectives)
+        for idx, solution in enumerate(algorithm.result):
+            print(solution.variables, solution.objectives)
+            results_dict[idx] = str(solution.objectives)
+
+        df = pd.DataFrame.from_dict(results_dict, orient='index')
+        return df
+
 
 
 

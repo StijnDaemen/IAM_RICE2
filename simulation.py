@@ -318,7 +318,7 @@ if __name__ == '__main__':
     database_POT = 'C:/Users/Stijn Daemen/Documents/master thesis TU Delft/code/IAM_RICE2/jupyter notebooks/Tests_Borg.db'
     table_name_POT = 'Test1_couplingborg_not_edited_borg'
 
-    PolicyTreeOptimizer(model=RICE(years_10, regions, database_POT=database_POT, table_name_POT=table_name_POT),
+    df_optimized_metrics = PolicyTreeOptimizer(model=RICE(years_10, regions, database_POT=database_POT, table_name_POT=table_name_POT),
                         # model=RICE(years_10, regions, database_POT=database_POT, table_name_POT=table_name_POT),
                         action_names=action_names,
                         action_bounds=action_bounds,
@@ -331,6 +331,7 @@ if __name__ == '__main__':
                         max_depth=4,
                         population_size=3
                         ).run()
+    df_optimized_metrics.to_excel('optimized_metrics.xlsx')
 
 
 
