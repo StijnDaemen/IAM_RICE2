@@ -75,12 +75,16 @@ class BorgMOEA(EpsilonProgressContinuation):
             self.restarted_last_check = False
 
     def iterate(self):
+        print(f'archive: {self.archive._contents}')
+        print(f'population: {self.population}')
         if len(self.archive) <= 1:
             parents = self.selector.select(
                 self.variator.arity, self.population)
+            print(f'archive <=1 parents: {parents}')
         else:
             parents = self.selector.select(
                 self.variator.arity-1, self.population) + [random.choice(self.archive)]
+            print(f'archive >1 parents: {parents}')
 
         random.shuffle(parents)
 

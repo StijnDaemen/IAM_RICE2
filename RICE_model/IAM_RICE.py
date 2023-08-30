@@ -288,8 +288,8 @@ class RICE:
     def get_metrics(self):
         # Define metrics of the model
         # objective_function_value assumes minimization
-        utilitarian_objective_function_value1 = -self.welfare_submodel.global_period_util_ww.sum()
-        utilitarian_objective_function_value2 = -self.welfare_submodel.utility
+        utilitarian_objective_function_value1 = -self.welfare_submodel.global_period_util_ww.sum()/10000
+        utilitarian_objective_function_value2 = -self.welfare_submodel.utility/1000000
         utilitarian_objective_function_value3 = self.welfare_submodel.temp_overshoots.sum()
         return utilitarian_objective_function_value1, utilitarian_objective_function_value2, utilitarian_objective_function_value3
 

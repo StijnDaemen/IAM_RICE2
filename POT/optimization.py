@@ -66,7 +66,7 @@ class PolicyTreeOptimizer:
     def borg_problem(self, x):
         T = self.random_tree()
         m1, m2, m3 = self.model.POT_control(T)
-        # print(m1, m2, m3, T)
+        print(m1, m2, m3, T)
         return m1, m2, m3
 
     def run(self):

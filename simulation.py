@@ -331,7 +331,7 @@ if __name__ == '__main__':
                         max_depth=4,
                         population_size=3
                         ).run()
-    df_optimized_metrics.to_excel('optimized_metrics.xlsx')
+    # df_optimized_metrics.to_excel('optimized_metrics.xlsx')
 
 
 
