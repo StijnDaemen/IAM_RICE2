@@ -8,7 +8,7 @@ import itertools
 import pandas as pd
 import math
 
-random.seed(0)
+random.seed(42)
 
 
 class Cluster:
