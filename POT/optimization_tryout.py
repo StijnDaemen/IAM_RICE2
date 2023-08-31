@@ -6,20 +6,24 @@ import time
 import copy
 import itertools
 import pandas as pd
+import math
 
-# random.seed(time.perf_counter())
 random.seed(0)
 
 
 class Cluster:
     def __init__(self, num_parents, num_children):
         self.graveyard = {}
+        self.VIPs = {}
         self.non_dominated = ()
         self.parents = []
         self.children = []
         self.family = []
         self.num_parents = num_parents
         self.num_children = num_children
+
+        # The center position takes the average dist
+        self.center_position = []
 
         # Model variables
         self.years_10 = []
@@ -52,7 +56,7 @@ class Cluster:
         self.discrete_features = False
         # Optimization variables
         self.mutation_prob = 0.5
-        self.max_nfe = 100
+        self.max_nfe = 100000
 
         # O1 = Organism()
         # O2 = Organism()
@@ -67,6 +71,30 @@ class Cluster:
 
         self.iterate()
 
+        # Create a pandas dataframe out of the graveyard records
+        dfs = []
+        for i in range(len(self.graveyard.keys())):
+            df = pd.DataFrame.from_dict(self.graveyard[i], orient='index', columns=['ofv1', 'ofv2', 'ofv3'])
+            df['policy'] = df.index
+            df['generation'] = i
+            dfs.append(df)
+        df = pd.concat(dfs)
+        df.reset_index(drop=True, inplace=True)
+        print(df.head)
+        df.to_excel('generational_test_single_cluster_graveyard_max_nfe_100000.xlsx')
+
+        # Create a pandas dataframe out of the VIPs records
+        dfs = []
+        for i in range(len(self.VIPs.keys())):
+            df = pd.DataFrame.from_dict(self.VIPs[i], orient='index', columns=['ofv1', 'ofv2', 'ofv3'])
+            df['policy'] = df.index
+            df['generation'] = i
+            dfs.append(df)
+        df = pd.concat(dfs)
+        df.reset_index(drop=True, inplace=True)
+        print(df.head)
+        df.to_excel('generational_test_single_cluster_VIPs_max_nfe_100000.xlsx')
+
     def iterate(self):
         nfe = 0
         generation = 0
@@ -80,29 +108,29 @@ class Cluster:
             self.populate()
             self.natural_selection()
 
+            # determine position of parents in solution space
+            self.center_position.append(self.determine_center_position(self.parents[0].fitness, self.parents[1].fitness))
+
             nfe += len(self.family)
 
             # Record the non dominated organisms per generation
             graveyard_dict = {}
-            for member in self.non_dominated:
+            for member in self.family:
                 graveyard_dict[str(member.dna)] = member.fitness
             self.graveyard[generation] = graveyard_dict
+
+            # Record all organisms per generation
+            VIPs_dict = {}
+            for member in self.non_dominated:
+                VIPs_dict[str(member.dna)] = member.fitness
+            self.VIPs[generation] = VIPs_dict
+
             generation += 1
 
             # print(f'family: {len(self.family)}')
             # print(f'nfe: {nfe}')
             # print(f'generation: {generation}')
         # print(self.graveyard.keys())
-        # Create a pandas dataframe out of the graveyard records
-        dfs = []
-        for i in range(len(self.graveyard.keys())):
-            df = pd.DataFrame.from_dict(self.graveyard[i], orient='index', columns=['ofv1', 'ofv2', 'ofv3'])
-            df['policy'] = df.index
-            df['generation'] = i
-            dfs.append(df)
-        df = pd.concat(dfs)
-        df.reset_index(drop=True, inplace=True)
-        print(df.head)
         return
 
     def random_tree(self, terminal_ratio=0.5,
@@ -168,11 +196,13 @@ class Cluster:
 
                 # Take the other non_dominated solutions as children
                 self.children = [i for i in self.non_dominated if i not in self.parents]
-                # Chuck two(?) out if every solution was non-dominated i.e. len(self.non_dominated) >= 8
-                if len(self.non_dominated) >= 8:
-                    self.children = self.children[6:]
+                # Chuck two(?)/ half out if every solution was non-dominated i.e. len(self.non_dominated) >= 8
+                if len(self.non_dominated) >= self.num_children+self.num_parents:  # 8
+                    idx = self.num_children-2
+                    self.children = self.children[idx:]  # 6:
+            # Else if there is only 1 suitable parent, choose it (ofcourse) and create a random other parent
             else:
-                self.parents = self.non_dominated[0]
+                self.parents = [self.non_dominated[0]]
                 # Create a random other parent
                 parent = Organism()
                 parent.dna = self.random_tree()
@@ -291,6 +321,15 @@ class Cluster:
 
         return lb + x_trial * (ub - lb)
 
+    def determine_center_position(self, P1, P2):
+        num_dimensions = len(P1)
+        center_position = []
+        for dimension in range(num_dimensions):
+            avg_pos = P1[dimension] + ((P2[dimension]-P1[dimension])/2)
+            center_position.append(avg_pos)
+        return center_position
+
+
         # Step 1: select best performing parent -> create dominates() function
         # Step 2: let other parents mutate -> if mutation dominates over
 
@@ -310,8 +349,37 @@ class Organism:
         self.fitness = None
 
 
-Cluster(2,8)
+Cluster(2, 8)
 
+
+class ClusterOpt:
+    def __init__(self):
+        # np.random.seed(time.perf_counter())
+        self.C1 = Cluster(2, 8)
+        # np.random.seed(time.perf_counter())
+        self.C2 = Cluster(2, 8)
+
+        print(self.C1.center_position)
+        print(self.C1.center_position)
+
+        print(self.distance(self.C1.center_position[0], self.C2.center_position[0]))
+
+    def distance(self, P1, P2):
+        # Input is list
+        num_dimensions = len(P1)
+        dist = []
+        for dimension in range(num_dimensions):
+            dist_ = (P2[dimension] - P1[dimension]) ** 2
+            dist.append(dist_)
+        distance = math.sqrt(sum(dist))
+        return distance
+        # return math.sqrt(((P2[0] - P1[0]) ** 2) + ((P2[1] - P1[1]) ** 2) + ((P2[2] - P1[2]) ** 2))
+
+
+# ClusterOpt()
+
+
+# -------------------------------------------------------------------------------------------------------
 # O1 = Organism()
 # O2 = Organism()
 #
