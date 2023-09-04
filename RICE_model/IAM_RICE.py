@@ -66,6 +66,7 @@ class RICE:
         if write_to_sqlite:
             self.write_to_sqlite(database='RICE_model/output_data/Experiment1.db', table_name=file_name, collection='executive variables')  # 'test3' # all_scenarios_1_policy_run_1
         # print(self.welfare_submodel.global_period_util_ww)
+        # print(self.get_metrics())
         return None
 
     def write_to_excel(self, collection='all variables', file_name='no_file_name_given'):
@@ -285,13 +286,20 @@ class RICE:
         conn.commit()
         conn.close()
 
+    # def get_metrics(self):
+    #     # Define metrics of the model
+    #     # objective_function_value assumes minimization
+    #     utilitarian_objective_function_value1 = -self.welfare_submodel.global_period_util_ww.sum()/10000
+    #     utilitarian_objective_function_value2 = -self.welfare_submodel.utility/1000000
+    #     utilitarian_objective_function_value3 = self.welfare_submodel.temp_overshoots.sum()
+    #     return utilitarian_objective_function_value1, utilitarian_objective_function_value2, utilitarian_objective_function_value3
+
     def get_metrics(self):
         # Define metrics of the model
         # objective_function_value assumes minimization
         utilitarian_objective_function_value1 = -self.welfare_submodel.global_period_util_ww.sum()/10000
-        utilitarian_objective_function_value2 = -self.welfare_submodel.utility/1000000
         utilitarian_objective_function_value3 = self.welfare_submodel.temp_overshoots.sum()
-        return utilitarian_objective_function_value1, utilitarian_objective_function_value2, utilitarian_objective_function_value3
+        return utilitarian_objective_function_value1, utilitarian_objective_function_value3
 
     def POT_control(self, P):
         # Note that currently the indicator variables are hardcoded in, so check if they match the feature_names! (
@@ -302,23 +310,41 @@ class RICE:
             policy, rules = P.evaluate(
                 [self.carbon_submodel.mat[t], self.economic_submodel.net_output[:, t].sum(axis=0), year])
 
-            policy_unpacked = policy.split('_')
-            policy_name = policy_unpacked[0]
-            policy_value = float(policy_unpacked[1])
+            # mu_target = 2300
+            # sr = 0.1
+            # irstp = 0.015
+
+            policies = policy.split('|')
+            for policy_ in policies:
+                policy_unpacked = policy_.split('_')
+                policy_name = policy_unpacked[0]
+                policy_value = float(policy_unpacked[1])
+
+                # print(policy_name)
+
+                if policy_name == 'miu':
+                    mu_target = policy_value
+                elif policy_name == 'sr':
+                    sr = policy_value
+                elif policy_name == 'irstp':
+                    irstp = policy_value
+
             # print(f'policy_name: {policy_name}')
             # print(f'policy_value: {policy_value}')
             # print(f'rules: {rules}')
 
             # Initialize levers
-            mu_target = 2135
-            sr = 0.248
-            irstp = 0.015
-            if policy_name == 'miu':
-                mu_target = policy_value
-            elif policy_name == 'sr':
-                sr = policy_value
-            elif policy_name == 'irstp':
-                irstp = policy_value
+            # mu_target = 2135
+            # sr = 0.248
+            # irstp = 0.015
+
+
+            # if policy_name == 'miu':
+            #     mu_target = policy_value
+            # elif policy_name == 'sr':
+            #     sr = policy_value
+            # elif policy_name == 'irstp':
+            #     irstp = policy_value
 
             # print(f'mu_target: {mu_target}')
             # print(f'sr: {sr}')
@@ -363,14 +389,15 @@ class RICE:
                                                   irstp=irstp)
             t += 1
 
-        utilitarian_objective_function_value1, utilitarian_objective_function_value2, utilitarian_objective_function_value3 = self.get_metrics()
+        # utilitarian_objective_function_value1, utilitarian_objective_function_value2, utilitarian_objective_function_value3 = self.get_metrics()
+        utilitarian_objective_function_value1, utilitarian_objective_function_value2 = self.get_metrics()
 
         # Save policy P with the objective function values
         if self.database_POT:
             policy_dict = {'policy': str(P),
                            'utilitarian_ofv1': [utilitarian_objective_function_value1],
-                           'utilitarian_ofv2': [utilitarian_objective_function_value2],
-                           'utilitarian_ofv3': [utilitarian_objective_function_value3], }
+                           'utilitarian_ofv2': [utilitarian_objective_function_value2],}
+                           # 'utilitarian_ofv3': [utilitarian_objective_function_value3], }
             df = pd.DataFrame(data=policy_dict)
 
             conn = sqlite3.connect(self.database_POT)
@@ -378,7 +405,8 @@ class RICE:
             conn.commit()
             conn.close()
 
-        return utilitarian_objective_function_value1, utilitarian_objective_function_value2, utilitarian_objective_function_value3  # objective_function_value
+        # return utilitarian_objective_function_value1, utilitarian_objective_function_value2, utilitarian_objective_function_value3  # objective_function_value
+        return utilitarian_objective_function_value1, utilitarian_objective_function_value2
 
     def DMDU_control(self):
         t = 0

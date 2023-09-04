@@ -50,7 +50,7 @@ if __name__ == '__main__':
 
     # BASIC RUN ----------------------------------------
     def basic_run_RICE(years_10, regions):
-        RICE(years_10, regions).run(write_to_excel=True, file_name='Basic RICE - Nordhaus Policy - 2')
+        RICE(years_10, regions).run(write_to_excel=False, file_name='Basic RICE - Nordhaus Policy - 2')
         pass
 
     def basic_run_RICE_with_scenarios(years_10, regions):
@@ -197,6 +197,7 @@ if __name__ == '__main__':
         # df_optimized_metrics.to_excel('optimized_metrics.xlsx')
         pass
 
+    # basic_run_RICE(years_10, regions)
 
 
 
