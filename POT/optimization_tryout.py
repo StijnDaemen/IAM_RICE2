@@ -1,7 +1,8 @@
 import numpy as np
+rng = np.random.default_rng(seed=44)
 from POT.tree import PTree
 from RICE_model.IAM_RICE import RICE
-import random
+# import random
 import time
 import copy
 import itertools
@@ -12,14 +13,19 @@ import matplotlib.pyplot as plt
 
 from statistics import mean
 
-np.random.seed(42)
+# np.random.seed(42)
+
+
+# rng = np.random.default_rng(0)
+# out = [rng.choice([0, 1], p=[0.5, 0.5]) for _ in range(10)]
+# print(out)
 
 
 class Cluster:
-    def __init__(self, num_parents, num_children):
+    def __init__(self, num_parents, num_children, rng):
         self.graveyard = {}
         self.VIPs = {}
-        self.overall_pareto_front = {}
+        # self.overall_pareto_front = {}
         self.non_dominated = []
         self.pareto_front = []
         self.parents = []
@@ -27,6 +33,11 @@ class Cluster:
         self.family = []
         self.num_parents = num_parents
         self.num_children = num_children
+
+        if rng is None:
+            rng = np.random.default_rng()
+        self.rng = rng  # np.random.default_rng(seed=seed)
+        # self.rng = np.random.default_rng(seed=44)
 
         self.convergence = []
 
@@ -64,21 +75,11 @@ class Cluster:
         self.discrete_features = False
         # Optimization variables
         self.mutation_prob = 0.5
-        self.max_nfe = 1000
+        self.max_nfe = 100
 
-        # O1 = Organism()
-        # O2 = Organism()
-        # O1.dna = self.random_tree()
-        # O1.fitness = self.policy_tree_RICE_fitness(O1.dna)
-        #
-        # O2.dna = self.random_tree()
-        # O2.fitness = self.policy_tree_RICE_fitness(O2.dna)
-        #
-        # print(O1.dna)
-        # print(O2.dna)
-
+        # Start optimization
         self.iterate()
-
+        # Determine final pareto front
         self.pareto_front = self.natural_selection(self.pareto_front)
 
         # Record the overall pareto front
@@ -90,12 +91,17 @@ class Cluster:
         df_graveyard = self.turn_to_dataframe(self.graveyard)
         df_VIPs = self.turn_to_dataframe(self.VIPs)
 
-        df_graveyard.to_excel('graveyard_tests_2.xlsx')
-        df_VIPs.to_excel('VIPs_tests_2.xlsx')
-        df_pareto_front.to_excel('pareto_front_tests_2.xlsx')
+        df_graveyard.to_excel('graveyard_tests_10.xlsx')
+        df_VIPs.to_excel('VIPs_tests_10.xlsx')
+        df_pareto_front.to_excel('pareto_front_tests_10.xlsx')
+
+        # self.rng = np.random.default_rng(42)
+        # print(self.rng.integers(10, size=10))
+        # self.rng_1 = np.random.default_rng(42)
+        # print(self.rng_1.integers(10, size=10))
 
         self.plot(df_graveyard['ofv1'], df_graveyard['ofv2'], df_VIPs['ofv1'], df_VIPs['ofv2'], df_pareto_front['ofv1'], df_pareto_front['ofv2'])
-        self.indicators_actions_analysis(df_VIPs)
+        # self.indicators_actions_analysis(df_graveyard)
 
     def turn_to_dataframe(self, dict_obj):
         dfs = []
@@ -111,6 +117,7 @@ class Cluster:
         return df
 
     def plot(self, x1, y1, x2, y2, x3, y3):
+        # print(self.rng.integers(10, size=10))
         # ys = dist_dict_diff
         # xs = [x for x in range(len(ys))]
 
@@ -198,40 +205,18 @@ class Cluster:
                     indicator_dict[ind[0]].append(float(ind[1]))
                 else:
                     indicator_dict[ind[0]] = [float(ind[1])]
+        # This assumes all indicator names from the input are also present in the indicator_dict (i.e. they were used in at least one policy tree). Dito fro the actions
+        for idx, indicator_name in enumerate(self.feature_names):
+            plt.subplot(2, 3, idx+1)
+            y = np.array(indicator_dict[indicator_name])
+            plt.hist(y)
+            plt.title(indicator_name)
 
-        plt.subplot(2, 3, 1)
-        y = np.array(indicator_dict['year'])
-        plt.hist(y)
-        plt.title('year')
-        # plt.ylabel('ofv2 - temp_overshoots')
-        # plt.xlabel('ofv1 - period utility')
-
-        plt.subplot(2, 3, 2)
-        y = np.array(indicator_dict['net_output'])
-        plt.hist(y)
-        plt.title('net_output')
-
-        plt.subplot(2, 3, 3)
-        y = np.array(indicator_dict['mat'])
-        plt.hist(y)
-        plt.title('mat')
-
-        plt.subplot(2, 3, 4)
-        y = np.array(action_dict['miu'])
-        plt.hist(y)
-        plt.title('miu')
-        # plt.ylabel('ofv2 - temp_overshoots')
-        # plt.xlabel('ofv1 - period utility')
-
-        plt.subplot(2, 3, 5)
-        y = np.array(action_dict['sr'])
-        plt.hist(y)
-        plt.title('sr')
-
-        plt.subplot(2, 3, 6)
-        y = np.array(action_dict['irstp'])
-        plt.hist(y)
-        plt.title('irstp')
+        for idx, action_name in enumerate(self.action_names):
+            plt.subplot(2, 3, idx+4)
+            y = np.array(action_dict[action_name])
+            plt.hist(y)
+            plt.title(action_name)
 
         plt.show()
         plt.close()
@@ -250,6 +235,7 @@ class Cluster:
                 self.pareto_front = self.non_dominated
             self.add_to_pareto_front()
 
+            print(f'pareto front: {[value.fitness for value in self.pareto_front]}')
             # # determine position of parents in solution space
             # self.center_position.append(self.determine_center_position(self.parents[0].fitness, self.parents[1].fitness))
 
@@ -267,15 +253,8 @@ class Cluster:
                 VIPs_dict[str(member.dna)] = member.fitness
             self.VIPs[generation] = VIPs_dict
 
-            # # Record the overall pareto front
-            # pareto_front_dict = {}
-            # for member in self.pareto_front:
-            #     pareto_front_dict[str(member.dna)] = member.fitness
-
+            print(f'end of generation: {generation}')
             generation += 1
-
-            # print(f'len(pareto_front): {len(self.pareto_front)}')
-            # print(f'generation: {generation} -- pareto_front: {[i.fitness for i in self.pareto_front]}')
 
             # Calculate distance between reference point and non_dominated solutions to track convergence
             x1 = -10
@@ -287,38 +266,13 @@ class Cluster:
                 dist = self.distance(P_ref, solution.fitness)
                 dist_list.append(dist)
             self.convergence.append(mean(dist_list))
-
-            # A = np.array(self.pareto_front)
-            # N = len(self.pareto_front)
-            # keep = np.ones(N, dtype=bool)
-            #
-            # for i in range(N):
-            #     for j in range(i + 1, N):
-            #         if keep[j] and self.dominates(A[i].fitness, A[j].fitness):
-            #             keep[j] = False
-            #
-            #         elif keep[i] and self.dominates(A[j].fitness, A[i].fitness):
-            #             keep[i] = False
-            #
-            # self.pareto_front = list(A[keep])
-
-            print(f'pareto_front: {[i.fitness for i in self.pareto_front]}')
-
-            # print(f'family: {len(self.family)}')
-            # print(f'nfe: {nfe}')
-            # print(f'generation: {generation}')
-        # print(self.graveyard.keys())
         return
 
-    def random_tree(self, terminal_ratio=0.5,
-                    # discrete_actions=True,
-                    # discrete_features=None,
-                    ):
-
+    def random_tree(self, terminal_ratio=0.5):
         num_features = len(self.feature_names)
-        num_actions = len(self.action_names)  # SD changed
 
-        depth = np.random.randint(1, self.max_depth + 1)
+        depth = self.rng.integers(1, self.max_depth + 1)
+        # print(f'a new tree is made')
         L = []
         S = [0]
 
@@ -327,9 +281,9 @@ class Cluster:
 
             # action node
             if current_depth == depth or (current_depth > 0 and \
-                                          np.random.rand() < terminal_ratio):
+                                          self.rng.random() < terminal_ratio):
                 if self.discrete_actions:
-                    L.append([str(np.random.choice(self.action_names))])
+                    L.append([str(self.rng.choice(self.action_names))])
                 else:
                     # a = np.random.choice(num_actions)  # SD changed
                     # action_name = self.action_names[a]
@@ -363,12 +317,13 @@ class Cluster:
                     # L.append(['|'.join(collect_actions)])  # SD changed
                     # # print(['|'.join(collect_actions)])
 
-                    action_input = f'miu_{np.random.randint(*self.action_bounds[0])}|sr_{np.random.uniform(*self.action_bounds[1])}|irstp_{np.random.uniform(*self.action_bounds[2])}'
+                    action_input = f'miu_{self.rng.integers(*self.action_bounds[0])}|sr_{self.rng.uniform(*self.action_bounds[1])}|irstp_{self.rng.uniform(*self.action_bounds[2])}'
                     L.append([action_input])
             else:
-                x = np.random.choice(num_features)
-                v = np.random.uniform(*self.feature_bounds[x])
+                x = self.rng.choice(num_features)
+                v = self.rng.uniform(*self.feature_bounds[x])
                 L.append([x, v])
+                # print(self.feature_names[x])
                 S += [current_depth + 1] * 2
 
         T = PTree(L, self.feature_names, self.discrete_features)
@@ -404,7 +359,7 @@ class Cluster:
         elif self.pareto_front:
             if len(self.pareto_front) >= self.num_parents:
                 while len(self.parents) < self.num_parents:
-                    P1, P2 = np.random.choice(
+                    P1, P2 = self.rng.choice(
                         self.pareto_front, 2, replace=False)
                     self.parents.append(P1)
                     self.parents.append(P2)
@@ -427,6 +382,7 @@ class Cluster:
                     self.parents.append(parent)
 
             # TODO:: In case every family member is non dominated, there is no more progression, what to do?
+        # print(f'parent_dna: {[str(value.dna) for value in self.parents]}')
         self.family.extend(self.parents)
         self.family.extend(self.children)
 
@@ -438,7 +394,7 @@ class Cluster:
         while len(self.children) < self.num_children:
             # print(len(self.children))
             child = Organism()
-            P1, P2 = np.random.choice(
+            P1, P2 = self.rng.choice(
                 self.parents, 2, replace=False)
             child.dna = self.crossover(P1.dna, P2.dna)[0]
 
@@ -518,8 +474,8 @@ class Cluster:
         # should use indices of ONLY feature nodes
         feature_ix1 = [i for i in range(P1.N) if P1.L[i].is_feature]
         feature_ix2 = [i for i in range(P2.N) if P2.L[i].is_feature]
-        index1 = np.random.choice(feature_ix1)
-        index2 = np.random.choice(feature_ix2)
+        index1 = self.rng.choice(feature_ix1)
+        index2 = self.rng.choice(feature_ix2)
         slice1 = P1.get_subtree(index1)
         slice2 = P2.get_subtree(index2)
         P1.L[slice1], P2.L[slice2] = P2.L[slice2], P1.L[slice1]
@@ -531,17 +487,17 @@ class Cluster:
         P = copy.deepcopy(P)
 
         for item in P.L:
-            if np.random.rand() < self.mutation_prob:
+            if self.rng.random() < self.mutation_prob:
                 if item.is_feature:
                     low, high = self.feature_bounds[item.index]
                     if item.is_discrete:
-                        item.threshold = np.random.randint(low, high + 1)
+                        item.threshold = self.rng.integers(low, high + 1)
                     else:
                         item.threshold = self.bounded_gaussian(
                             item.threshold, [low, high])
                 elif mutate_actions:
                     if self.discrete_actions:
-                        item.value = str(np.random.choice(self.action_names))
+                        item.value = str(self.rng.choice(self.action_names))
                     else:
                         # print(item)
                         # print(self.action_bounds)
@@ -557,7 +513,7 @@ class Cluster:
                         # # print(action_input)
                         # item.value = action_input
 
-                        action_input = f'miu_{np.random.randint(*self.action_bounds[0])}|sr_{np.random.uniform(*self.action_bounds[1])}|irstp_{np.random.uniform(*self.action_bounds[2])}'
+                        action_input = f'miu_{self.rng.integers(*self.action_bounds[0])}|sr_{self.rng.uniform(*self.action_bounds[1])}|irstp_{self.rng.uniform(*self.action_bounds[2])}'
                         item.value = action_input
 
         return P
@@ -566,7 +522,7 @@ class Cluster:
         # do mutation in normalized [0,1] to avoid sigma scaling issues
         lb, ub = bounds
         xnorm = (x - lb) / (ub - lb)
-        x_trial = np.clip(xnorm + np.random.normal(0, scale=0.1), 0, 1)
+        x_trial = np.clip(xnorm + self.rng.normal(0, scale=0.1), 0, 1)
 
         return lb + x_trial * (ub - lb)
 
@@ -608,7 +564,9 @@ class Organism:
         self.fitness = None
 
 
-Cluster(20, 80)
+# rng = np.random.default_rng(seed=44)
+Cluster(2, 8, rng=rng)
+Cluster(2, 8, rng=rng)
 
 
 class ClusterOpt:
