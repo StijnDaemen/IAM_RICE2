@@ -6,9 +6,17 @@ from RICE_model import *
 
 
 class RICE:
-    def __init__(self, years, regions, scenario=None, levers=None, database_POT=None, table_name_POT=None):
+    def __init__(self, years, regions, scenario=None, levers=None, save_location=None, file_name=None):
         self.years = years
         self.regions = regions
+
+        self.save_location = save_location
+        self.file_name = file_name
+        # Initialize sqlite database to save outcomes of a run - note use one universal database called 'Experiments.db'
+        if save_location:
+            self.database = f'{save_location}/Experiments.db'
+        else:
+            self.database = None
 
         # Initialize scenario dict, if provided
         if scenario:
@@ -36,14 +44,7 @@ class RICE:
         self.climate_submodel = RICE_climate_submodel.ClimateSubmodel(self.years, self.regions, uncertainty_dict=self.uncertainty_dict)
         self.welfare_submodel = welfare_submodel.WelfareSubmodel(self.years, self.regions)
 
-        # load sqlite database information for a POT simulation
-        if database_POT:
-            self.database_POT = database_POT
-            self.table_name_POT = table_name_POT
-        else:
-            self.database_POT = None
-
-    def run(self, write_to_excel=False, write_to_sqlite=False, file_name=False):
+    def run(self, write_to_excel=False, write_to_sqlite=False):
         t = 0
         for year in self.years:
             self.economic_submodel.run_gross(t, year, mu_target=self.levers['mu_target'], sr=self.levers['sr'])
@@ -59,17 +60,24 @@ class RICE:
                                                   temp_atm=self.climate_submodel.temp_atm, irstp=self.levers['irstp'])
             t += 1
         if write_to_excel:
-            self.write_to_excel(collection='executive variables',
-                                file_name=file_name)  # f'scenario 2_10000--levers 2135_0248_0015'
+            if not self.file_name:
+                print('You have to provide a save_location and file_name to the init of RICE() if you want to save simulation results to excel.')
+                return None
+            else:
+                self.write_to_excel(collection='executive variables')  # f'scenario 2_10000--levers 2135_0248_0015'
             # self.write_to_excel(collection='executive variables',
             #                     file_name='record_executive_variables_for_verification_w_pyRICE2022_5')
         if write_to_sqlite:
-            self.write_to_sqlite(database='RICE_model/output_data/Experiment1.db', table_name=file_name, collection='executive variables')  # 'test3' # all_scenarios_1_policy_run_1
+            if not self.file_name:
+                print('You have to provide a save_location and file_name to the init of RICE() if you want to save simulation results to an sqlite database.')
+                return None
+            else:
+                self.write_to_sqlite(collection='executive variables')  # 'test3' # all_scenarios_1_policy_run_1
         # print(self.welfare_submodel.global_period_util_ww)
         # print(self.get_metrics())
         return None
 
-    def write_to_excel(self, collection='all variables', file_name='no_file_name_given'):
+    def write_to_excel(self, collection='all variables'):
         def collect_all_variables():
             # Collect all class variables from the different submodels
             model_variables = vars(self.economic_submodel)
@@ -153,10 +161,17 @@ class RICE:
             return exec_var_dict
 
         def collect_metrics_variables():
+            metrics_dict = {}
             region = 'global'
-            metrics_dict = {region: {'global_period_util_ww': self.welfare_submodel.global_period_util_ww,
-                                     'global_output': self.welfare_submodel.global_output,
-                                     'temp_overshoots': self.welfare_submodel.temp_overshoots}}
+            metrics_dict[region] = {}
+            metrics = self.get_metrics()
+            for idx, metric in enumerate(metrics):
+                metrics_dict[region][f'metric_{idx}'] = metric
+
+            # region = 'global'
+            # metrics_dict = {region: {'global_period_util_ww': self.welfare_submodel.global_period_util_ww,
+            #                          'global_output': self.welfare_submodel.global_output,
+            #                          'temp_overshoots': self.welfare_submodel.temp_overshoots}}
             return metrics_dict
 
         model_variables_to_excel = {}
@@ -168,7 +183,7 @@ class RICE:
             model_variables_to_excel = collect_metrics_variables()
 
         # Write dictionaries to an excel file
-        writer = pd.ExcelWriter(f'RICE_model/output_data/{file_name}.xlsx')
+        writer = pd.ExcelWriter(f'{self.save_location}/{self.file_name}.xlsx')
         for region_key in model_variables_to_excel:
             df = pd.DataFrame.from_dict(model_variables_to_excel[region_key])
             df.index = self.years
@@ -189,7 +204,7 @@ class RICE:
         writer.close()
         return
 
-    def write_to_sqlite(self, database, table_name, collection):
+    def write_to_sqlite(self, collection='executive variables'):
         def collect_executive_variables():
             executive_variables_dict = {'mu': self.economic_submodel.mu,
                                         'S': self.economic_submodel.S,
@@ -238,11 +253,17 @@ class RICE:
             return exec_var_dict
 
         def collect_metrics_variables():
+            metrics_dict = {}
             region = 'global'
-            metrics_dict = {region: {'global_period_util_ww': self.welfare_submodel.global_period_util_ww,
-                                     'global_output': self.welfare_submodel.global_output,
-                                     'temp_overshoots': self.welfare_submodel.temp_overshoots,
-                                     'global_emissions': self.carbon_submodel.E_worldwide_per_year}}
+            metrics_dict[region] = {}
+            metrics = self.get_metrics()
+            for idx, metric in enumerate(metrics):
+                metrics_dict[region][f'metric_{idx}'] = metric
+            # region = 'global'
+            # metrics_dict = {region: {'global_period_util_ww': self.welfare_submodel.global_period_util_ww,
+            #                          'global_output': self.welfare_submodel.global_output,
+            #                          'temp_overshoots': self.welfare_submodel.temp_overshoots,
+            #                          'global_emissions': self.carbon_submodel.E_worldwide_per_year}}
             return metrics_dict
 
         model_variables_to_sqlite = {}
@@ -280,26 +301,26 @@ class RICE:
             df['price_backstop_tech'] = self.scenario['price_backstop_tech']
             df['negative_emissions_possible'] = self.scenario['negative_emissions_possible']
 
-        conn = sqlite3.connect(database)
+        conn = sqlite3.connect(self.database)
 
-        df.to_sql(name=table_name, con=conn, if_exists='append')
+        df.to_sql(name=self.file_name, con=conn, if_exists='append')
         conn.commit()
         conn.close()
-
-    # def get_metrics(self):
-    #     # Define metrics of the model
-    #     # objective_function_value assumes minimization
-    #     utilitarian_objective_function_value1 = -self.welfare_submodel.global_period_util_ww.sum()/10000
-    #     utilitarian_objective_function_value2 = -self.welfare_submodel.utility/1000000
-    #     utilitarian_objective_function_value3 = self.welfare_submodel.temp_overshoots.sum()
-    #     return utilitarian_objective_function_value1, utilitarian_objective_function_value2, utilitarian_objective_function_value3
 
     def get_metrics(self):
         # Define metrics of the model
         # objective_function_value assumes minimization
         utilitarian_objective_function_value1 = -self.welfare_submodel.global_period_util_ww.sum()/10000
+        utilitarian_objective_function_value2 = -self.welfare_submodel.utility/1000000000
         utilitarian_objective_function_value3 = self.welfare_submodel.temp_overshoots.sum()
-        return utilitarian_objective_function_value1, utilitarian_objective_function_value3
+        return utilitarian_objective_function_value1, utilitarian_objective_function_value2, utilitarian_objective_function_value3
+
+    # def get_metrics(self):
+    #     # Define metrics of the model
+    #     # objective_function_value assumes minimization
+    #     utilitarian_objective_function_value1 = -self.welfare_submodel.global_period_util_ww.sum()/10000
+    #     utilitarian_objective_function_value3 = self.welfare_submodel.temp_overshoots.sum()
+    #     return utilitarian_objective_function_value1, utilitarian_objective_function_value3
 
     def POT_control(self, P):
         # Note that currently the indicator variables are hardcoded in, so check if they match the feature_names! (
@@ -309,10 +330,6 @@ class RICE:
             # Determine policy based on indicator variables
             policy, rules = P.evaluate(
                 [self.carbon_submodel.mat[t], self.economic_submodel.net_output[:, t].sum(axis=0), year])
-
-            # mu_target = 2300
-            # sr = 0.1
-            # irstp = 0.015
 
             policies = policy.split('|')
             for policy_ in policies:
@@ -329,50 +346,70 @@ class RICE:
                 elif policy_name == 'irstp':
                     irstp = policy_value
 
-            # print(f'policy_name: {policy_name}')
-            # print(f'policy_value: {policy_value}')
-            # print(f'rules: {rules}')
+            # Run one timestep of RICE
+            self.economic_submodel.run_gross(t, year, mu_target=mu_target, sr=sr)
+            self.carbon_submodel.run(t, year, E=self.economic_submodel.E)
+            self.climate_submodel.run(t, year, forc=self.carbon_submodel.forc,
+                                      gross_output=self.economic_submodel.gross_output)
+            self.economic_submodel.run_net(t, year, temp_atm=self.climate_submodel.temp_atm,
+                                           SLRDAMAGES=self.climate_submodel.SLRDAMAGES)
+            self.welfare_submodel.run_utilitarian(t, year, CPC=self.economic_submodel.CPC,
+                                                  labour_force=self.economic_submodel.labour_force,
+                                                  damages=self.economic_submodel.damages,
+                                                  net_output=self.economic_submodel.net_output,
+                                                  temp_atm=self.climate_submodel.temp_atm,
+                                                  irstp=irstp)
+            t += 1
+
+        utilitarian_objective_function_value1, utilitarian_objective_function_value2, utilitarian_objective_function_value3 = self.get_metrics()
+        # utilitarian_objective_function_value1, utilitarian_objective_function_value2 = self.get_metrics()
+
+        # Save policy P with the objective function values
+        if self.database:
+            policy_dict = {'policy': str(P),
+                           'utilitarian_ofv1': [utilitarian_objective_function_value1],
+                           'utilitarian_ofv2': [utilitarian_objective_function_value2],
+                           'utilitarian_ofv3': [utilitarian_objective_function_value3], }
+            df = pd.DataFrame(data=policy_dict)
+
+            conn = sqlite3.connect(self.database)
+            df.to_sql(name=self.file_name, con=conn, if_exists='append')
+            conn.commit()
+            conn.close()
+
+        # return utilitarian_objective_function_value1, utilitarian_objective_function_value2, utilitarian_objective_function_value3  # objective_function_value
+        return utilitarian_objective_function_value1, utilitarian_objective_function_value2, utilitarian_objective_function_value3
+
+    def POT_control_Herman(self, P):
+        # Note that currently the indicator variables are hardcoded in, so check if they match the feature_names! (
+        # also in the same order)
+        t = 0
+        for year in self.years:
+            # Determine policy based on indicator variables
+            policy, rules = P.evaluate(
+                [self.carbon_submodel.mat[t], self.economic_submodel.net_output[:, t].sum(axis=0), year])
+
+            # mu_target = 2300
+            # sr = 0.1
+            # irstp = 0.015
+
+            policy_unpacked = policy.split('_')
+            policy_name = policy_unpacked[0]
+            policy_value = float(policy_unpacked[1])
 
             # Initialize levers
-            # mu_target = 2135
-            # sr = 0.248
-            # irstp = 0.015
+            mu_target = 2135
+            sr = 0.248
+            irstp = 0.015
 
 
-            # if policy_name == 'miu':
-            #     mu_target = policy_value
-            # elif policy_name == 'sr':
-            #     sr = policy_value
-            # elif policy_name == 'irstp':
-            #     irstp = policy_value
+            if policy_name == 'miu':
+                mu_target = policy_value
+            elif policy_name == 'sr':
+                sr = policy_value
+            elif policy_name == 'irstp':
+                irstp = policy_value
 
-            # print(f'mu_target: {mu_target}')
-            # print(f'sr: {sr}')
-            # print(f'irstp: {irstp}')
-
-            # # Initialize levers
-            # mu_target = 2135
-            # sr = 0.248
-            # irstp = 0.015
-            # # Match policy to RICE variable lever
-            # if policy == 'miu_2100':
-            #     mu_target = 2100
-            # if policy == 'miu_2150':
-            #     mu_target = 2150
-            # if policy == 'miu_2200':
-            #     mu_target = 2200
-            # if policy == 'miu_2125':
-            #     mu_target = 2125
-            # if policy == 'sr_02':
-            #     sr = 0.2
-            # if policy == 'sr_03':
-            #     sr = 0.3
-            # if policy == 'sr_04':
-            #     sr = 0.4
-            # if policy == 'sr_05':
-            #     sr = 0.5
-            # if policy == 'irspt_15':
-            #     irstp = 0.015
 
             # Run one timestep of RICE
             self.economic_submodel.run_gross(t, year, mu_target=mu_target, sr=sr)
@@ -389,26 +426,26 @@ class RICE:
                                                   irstp=irstp)
             t += 1
 
-        # utilitarian_objective_function_value1, utilitarian_objective_function_value2, utilitarian_objective_function_value3 = self.get_metrics()
-        utilitarian_objective_function_value1, utilitarian_objective_function_value2 = self.get_metrics()
+        utilitarian_objective_function_value1, utilitarian_objective_function_value2, utilitarian_objective_function_value3 = self.get_metrics()
+        # utilitarian_objective_function_value1, utilitarian_objective_function_value2 = self.get_metrics()
 
         # Save policy P with the objective function values
-        if self.database_POT:
+        if self.database:
             policy_dict = {'policy': str(P),
                            'utilitarian_ofv1': [utilitarian_objective_function_value1],
-                           'utilitarian_ofv2': [utilitarian_objective_function_value2],}
-                           # 'utilitarian_ofv3': [utilitarian_objective_function_value3], }
+                           'utilitarian_ofv2': [utilitarian_objective_function_value2],
+                           'utilitarian_ofv3': [utilitarian_objective_function_value3], }
             df = pd.DataFrame(data=policy_dict)
 
-            conn = sqlite3.connect(self.database_POT)
-            df.to_sql(name=self.table_name_POT, con=conn, if_exists='append')
+            conn = sqlite3.connect(self.database)
+            df.to_sql(name=self.file_name, con=conn, if_exists='append')
             conn.commit()
             conn.close()
 
-        # return utilitarian_objective_function_value1, utilitarian_objective_function_value2, utilitarian_objective_function_value3  # objective_function_value
-        return utilitarian_objective_function_value1, utilitarian_objective_function_value2
+        return utilitarian_objective_function_value1, utilitarian_objective_function_value2, utilitarian_objective_function_value3  # objective_function_value
+        # return utilitarian_objective_function_value1, utilitarian_objective_function_value2
 
-    def DMDU_control(self):
+    def ema_workbench_control(self):
         t = 0
         for year in self.years:
             self.economic_submodel.run_gross(t, year, mu_target=self.levers['mu_target'], sr=self.levers['sr'])

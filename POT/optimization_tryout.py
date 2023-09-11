@@ -34,6 +34,9 @@ class Cluster:
         self.num_parents = num_parents
         self.num_children = num_children
 
+        self.nfe = 0
+        self.generation = 0
+
         if rng is None:
             rng = np.random.default_rng()
         self.rng = rng  # np.random.default_rng(seed=seed)
@@ -75,8 +78,9 @@ class Cluster:
         self.discrete_features = False
         # Optimization variables
         self.mutation_prob = 0.5
-        self.max_nfe = 100
+        # self.max_nfe = 100
 
+    def run_one_gen(self):
         # Start optimization
         self.iterate()
         # Determine final pareto front
@@ -91,9 +95,9 @@ class Cluster:
         df_graveyard = self.turn_to_dataframe(self.graveyard)
         df_VIPs = self.turn_to_dataframe(self.VIPs)
 
-        df_graveyard.to_excel('graveyard_tests_10.xlsx')
-        df_VIPs.to_excel('VIPs_tests_10.xlsx')
-        df_pareto_front.to_excel('pareto_front_tests_10.xlsx')
+        # df_graveyard.to_excel('graveyard_tests_10.xlsx')
+        # df_VIPs.to_excel('VIPs_tests_10.xlsx')
+        # df_pareto_front.to_excel('pareto_front_tests_10.xlsx')
 
         # self.rng = np.random.default_rng(42)
         # print(self.rng.integers(10, size=10))
@@ -102,6 +106,33 @@ class Cluster:
 
         self.plot(df_graveyard['ofv1'], df_graveyard['ofv2'], df_VIPs['ofv1'], df_VIPs['ofv2'], df_pareto_front['ofv1'], df_pareto_front['ofv2'])
         # self.indicators_actions_analysis(df_graveyard)
+        return
+
+        # # Start optimization
+        # self.iterate()
+        # # Determine final pareto front
+        # self.pareto_front = self.natural_selection(self.pareto_front)
+        #
+        # # Record the overall pareto front
+        # pareto_front_dict = {}
+        # for member in self.pareto_front:
+        #     pareto_front_dict[str(member.dna)] = member.fitness
+        # df_pareto_front = pd.DataFrame.from_dict(pareto_front_dict, orient='index', columns=['ofv1', 'ofv2'])
+        #
+        # df_graveyard = self.turn_to_dataframe(self.graveyard)
+        # df_VIPs = self.turn_to_dataframe(self.VIPs)
+        #
+        # df_graveyard.to_excel('graveyard_tests_10.xlsx')
+        # df_VIPs.to_excel('VIPs_tests_10.xlsx')
+        # df_pareto_front.to_excel('pareto_front_tests_10.xlsx')
+        #
+        # # self.rng = np.random.default_rng(42)
+        # # print(self.rng.integers(10, size=10))
+        # # self.rng_1 = np.random.default_rng(42)
+        # # print(self.rng_1.integers(10, size=10))
+        #
+        # self.plot(df_graveyard['ofv1'], df_graveyard['ofv2'], df_VIPs['ofv1'], df_VIPs['ofv2'], df_pareto_front['ofv1'], df_pareto_front['ofv2'])
+        # # self.indicators_actions_analysis(df_graveyard)
 
     def turn_to_dataframe(self, dict_obj):
         dfs = []
@@ -222,50 +253,94 @@ class Cluster:
         plt.close()
 
     def iterate(self):
-        nfe = 0
-        generation = 0
-        while nfe < self.max_nfe:
+        # nfe = 0
+        # generation = 0
+        # while nfe < self.max_nfe:
 
-            # Populate a generation, depending on the number of available parents
-            self.populate()
-            # Find the non dominated solutions in a generation
-            self.non_dominated = self.natural_selection(self.family)
-            # Add these solutions also to the pareto front if they are non_dominated throughout the generations
-            if generation == 0:
-                self.pareto_front = self.non_dominated
-            self.add_to_pareto_front()
+        # Populate a generation, depending on the number of available parents
+        self.populate()
+        # Find the non dominated solutions in a generation
+        self.non_dominated = self.natural_selection(self.family)
+        # Add these solutions also to the pareto front if they are non_dominated throughout the generations
+        if self.generation == 0:
+            self.pareto_front = self.non_dominated
+        self.add_to_pareto_front()
 
-            print(f'pareto front: {[value.fitness for value in self.pareto_front]}')
-            # # determine position of parents in solution space
-            # self.center_position.append(self.determine_center_position(self.parents[0].fitness, self.parents[1].fitness))
+        print(f'pareto front: {[value.fitness for value in self.pareto_front]}')
+        # # determine position of parents in solution space
+        # self.center_position.append(self.determine_center_position(self.parents[0].fitness, self.parents[1].fitness))
 
-            nfe += len(self.family)
+        self.nfe += len(self.family)
 
-            # Record all organisms per generation
-            graveyard_dict = {}
-            for member in self.family:
-                graveyard_dict[str(member.dna)] = member.fitness
-            self.graveyard[generation] = graveyard_dict
+        # Record all organisms per generation
+        graveyard_dict = {}
+        for member in self.family:
+            graveyard_dict[str(member.dna)] = member.fitness
+        self.graveyard[self.generation] = graveyard_dict
 
-            # Record the non dominated organisms per generation
-            VIPs_dict = {}
-            for member in self.non_dominated:
-                VIPs_dict[str(member.dna)] = member.fitness
-            self.VIPs[generation] = VIPs_dict
+        # Record the non dominated organisms per generation
+        VIPs_dict = {}
+        for member in self.non_dominated:
+            VIPs_dict[str(member.dna)] = member.fitness
+        self.VIPs[self.generation] = VIPs_dict
 
-            print(f'end of generation: {generation}')
-            generation += 1
+        print(f'end of generation: {self.generation}')
+        self.generation += 1
 
-            # Calculate distance between reference point and non_dominated solutions to track convergence
-            x1 = -10
-            x2 = 2
-            P_ref = [x1, x2]
-            # combine distances from non_dominated_solutions
-            dist_list = []
-            for solution in self.non_dominated:
-                dist = self.distance(P_ref, solution.fitness)
-                dist_list.append(dist)
-            self.convergence.append(mean(dist_list))
+        # Calculate distance between reference point and non_dominated solutions to track convergence
+        x1 = -10
+        x2 = 2
+        P_ref = [x1, x2]
+        # combine distances from non_dominated_solutions
+        dist_list = []
+        for solution in self.non_dominated:
+            dist = self.distance(P_ref, solution.fitness)
+            dist_list.append(dist)
+        self.convergence.append(mean(dist_list))
+        # nfe = 0
+        # generation = 0
+        # while nfe < self.max_nfe:
+        #
+        #     # Populate a generation, depending on the number of available parents
+        #     self.populate()
+        #     # Find the non dominated solutions in a generation
+        #     self.non_dominated = self.natural_selection(self.family)
+        #     # Add these solutions also to the pareto front if they are non_dominated throughout the generations
+        #     if generation == 0:
+        #         self.pareto_front = self.non_dominated
+        #     self.add_to_pareto_front()
+        #
+        #     print(f'pareto front: {[value.fitness for value in self.pareto_front]}')
+        #     # # determine position of parents in solution space
+        #     # self.center_position.append(self.determine_center_position(self.parents[0].fitness, self.parents[1].fitness))
+        #
+        #     nfe += len(self.family)
+        #
+        #     # Record all organisms per generation
+        #     graveyard_dict = {}
+        #     for member in self.family:
+        #         graveyard_dict[str(member.dna)] = member.fitness
+        #     self.graveyard[generation] = graveyard_dict
+        #
+        #     # Record the non dominated organisms per generation
+        #     VIPs_dict = {}
+        #     for member in self.non_dominated:
+        #         VIPs_dict[str(member.dna)] = member.fitness
+        #     self.VIPs[generation] = VIPs_dict
+        #
+        #     print(f'end of generation: {generation}')
+        #     generation += 1
+        #
+        #     # Calculate distance between reference point and non_dominated solutions to track convergence
+        #     x1 = -10
+        #     x2 = 2
+        #     P_ref = [x1, x2]
+        #     # combine distances from non_dominated_solutions
+        #     dist_list = []
+        #     for solution in self.non_dominated:
+        #         dist = self.distance(P_ref, solution.fitness)
+        #         dist_list.append(dist)
+        #     self.convergence.append(mean(dist_list))
         return
 
     def random_tree(self, terminal_ratio=0.5):
@@ -564,22 +639,47 @@ class Organism:
         self.fitness = None
 
 
-# rng = np.random.default_rng(seed=44)
-Cluster(2, 8, rng=rng)
-Cluster(2, 8, rng=rng)
+# # rng = np.random.default_rng(seed=44)
+# Cluster(2, 8, rng=rng)
+# Cluster(2, 8, rng=rng)
 
 
 class ClusterOpt:
-    def __init__(self):
+    def __init__(self, rng=None):
+        if rng is None:
+            rng = np.random.default_rng()
+        self.rng = rng  # np.random.default_rng(seed=seed)
+        
         # np.random.seed(time.perf_counter())
-        self.C1 = Cluster(2, 8)
+        self.C1 = Cluster(20, 80, rng=self.rng)
         # np.random.seed(time.perf_counter())
-        self.C2 = Cluster(2, 8)
+        self.C2 = Cluster(20, 80, rng=self.rng)
 
-        print(self.C1.center_position)
-        print(self.C1.center_position)
+        self.C1.run_one_gen()
+        self.C2.run_one_gen()
 
-        print(self.distance(self.C1.center_position[0], self.C2.center_position[0]))
+        self.C1.run_one_gen()
+        self.C2.run_one_gen()
+
+        print(mean([organism.fitness] for organism in self.C1.pareto_front))
+        print(mean([organism.fitness] for organism in self.C2.pareto_front))
+
+        self.C1.run_one_gen()
+        self.C2.run_one_gen()
+
+        print(mean([organism.fitness] for organism in self.C1.pareto_front))
+        print(mean([organism.fitness] for organism in self.C2.pareto_front))
+
+        self.C1.run_one_gen()
+        self.C2.run_one_gen()
+
+        print(mean([organism.fitness] for organism in self.C1.pareto_front))
+        print(mean([organism.fitness] for organism in self.C2.pareto_front))
+
+        # print(self.C1.center_position)
+        # print(self.C1.center_position)
+        #
+        # print(self.distance(self.C1.center_position[0], self.C2.center_position[0]))
 
     def distance(self, P1, P2):
         # Input is list
@@ -593,7 +693,7 @@ class ClusterOpt:
         # return math.sqrt(((P2[0] - P1[0]) ** 2) + ((P2[1] - P1[1]) ** 2) + ((P2[2] - P1[2]) ** 2))
 
 
-# ClusterOpt()
+ClusterOpt(rng=rng)
 
 
 
